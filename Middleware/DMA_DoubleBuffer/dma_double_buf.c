@@ -28,6 +28,9 @@ void DMA_DoubleBuf_Init(DMA_DoubleBuf_HandleTypeDef *hdma,
     hdma->buf1_ready = false;
     hdma->buf2_ready = false;
     hdma->current_transfer_len = 0;
+
+    hdma->total_size   = 0;
+    hdma->total_filled = 0;
 }
 
 /**
@@ -38,13 +41,17 @@ bool DMA_DoubleBuf_Start(DMA_DoubleBuf_HandleTypeDef *hdma, uint32_t total_size)
     if (hdma->state == DMA_STATE_BUSY)
         return false;
 
+    hdma->total_size      = total_size;   // ★ 新增
     hdma->total_remaining = total_size;
-    hdma->data_ready = 0;
-    hdma->state = DMA_STATE_BUSY;
-    hdma->buf1_ready = false;
-    hdma->buf2_ready = false;
-    hdma->next_fill_buf = hdma->buffer1;
-    hdma->current_tx_buf = NULL;
+    hdma->total_filled    = 0;            // ★ 新增
+
+    hdma->data_ready      = 0;
+    hdma->state           = DMA_STATE_BUSY;
+    hdma->buf1_ready      = false;
+    hdma->buf2_ready      = false;
+    hdma->next_fill_buf   = hdma->buffer1;
+    hdma->current_tx_buf  = NULL;
+    hdma->current_transfer_len = 0;
 
     return true;
 }
@@ -58,18 +65,41 @@ bool DMA_DoubleBuf_WriteData(DMA_DoubleBuf_HandleTypeDef *hdma,
     if (hdma->state != DMA_STATE_BUSY)
         return false;
 
+    /* 1. 还允许写多少（全局上限） */
+    uint32_t can_still_accept = 0;
+    if (hdma->total_size >= hdma->total_filled)
+        can_still_accept = hdma->total_size - hdma->total_filled;
+    else
+        return false;  // 理论上不该出现
+
+    if (can_still_accept == 0)
+        return false;  // 已经写满了，不再接受新数据
+
+    /* 2. 当前缓冲区还能写多少（局部上限） */
     uint32_t free_space = DMA_DoubleBuf_GetFreeSpace(hdma);
     if (free_space == 0)
         return false;
 
-    uint32_t copy_len = (len > free_space) ? free_space : len;
+    uint32_t copy_len = len;
+    if (copy_len > free_space)
+        copy_len = free_space;
+    if (copy_len > can_still_accept)
+        copy_len = can_still_accept;
+
+    if (copy_len == 0)
+        return false;
+
+    /* 3. 把数据拷进 next_fill_buf */
     memcpy((void *)&hdma->next_fill_buf[hdma->data_ready], data, copy_len);
 
-    hdma->data_ready += copy_len;
+    hdma->data_ready    += copy_len;
+    hdma->total_filled  += copy_len;   // ★ 记录这次任务一共写了多少
 
-    /* buffer 满 或 已填满 total_remaining */
+    /* 4. 判断是否应该把当前缓冲区标记为 ready：
+          - buffer 写满了，或者
+          - 这次任务所有数据都已经写完了（最后一块） */
     if (hdma->data_ready >= hdma->buffer_size ||
-        hdma->data_ready >= hdma->total_remaining)
+        hdma->total_filled == hdma->total_size)
     {
         if (hdma->next_fill_buf == hdma->buffer1) {
             hdma->buf1_ready = true;
@@ -205,8 +235,11 @@ void DMA_DoubleBuf_Stop(DMA_DoubleBuf_HandleTypeDef *hdma)
 
     hdma->state = DMA_STATE_READY;
     hdma->total_remaining = 0;
-    hdma->current_tx_buf = NULL;
-    hdma->buf1_ready = false;
-    hdma->buf2_ready = false;
-    hdma->data_ready = 0;
+    hdma->current_tx_buf  = NULL;
+    hdma->buf1_ready      = false;
+    hdma->buf2_ready      = false;
+    hdma->data_ready      = 0;
+
+    hdma->total_size      = 0;
+    hdma->total_filled    = 0;
 }

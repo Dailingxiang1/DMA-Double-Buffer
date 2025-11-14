@@ -29,17 +29,21 @@ typedef struct {
     uint8_t *buffer2;
     uint32_t buffer_size;
     DMA_CompleteCallback complete_cb;
-    DMA_ErrorCallback error_cb;
+    DMA_ErrorCallback    error_cb;
 
     /* 内部状态 */
-    volatile uint8_t *current_tx_buf;
-    volatile uint8_t *next_fill_buf;
-    volatile uint32_t total_remaining;
-    volatile uint32_t data_ready;
+    volatile uint8_t  *current_tx_buf;
+    volatile uint8_t  *next_fill_buf;
+    volatile uint32_t total_remaining;   // 尚未发送到外设的总字节数
+    volatile uint32_t data_ready;        // 当前 next_fill_buf 里已填充字节数
     volatile DMA_State_t state;
-    volatile bool buf1_ready;
-    volatile bool buf2_ready;
-    volatile uint32_t current_transfer_len;
+    volatile bool      buf1_ready;
+    volatile bool      buf2_ready;
+    volatile uint32_t  current_transfer_len;
+
+    /* ★ 新增：这次任务的总大小 & 已填充字节数（应用层写入） */
+    volatile uint32_t  total_size;
+    volatile uint32_t  total_filled;
 
 } DMA_DoubleBuf_HandleTypeDef;
 
