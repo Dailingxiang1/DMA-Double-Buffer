@@ -108,9 +108,9 @@ while (sent < total_size) {
 
 - 当当前填充的 buffer 满了，或已经写满 total_size 对应的数据：
 
-- - 会自动标记该 buffer 为“就绪”
+    - 会自动标记该 buffer 为“就绪”
 
-- - 如果底层 DMA 空闲，则立即启动该 buffer 的 DMA 传输
+    - 如果底层 DMA 空闲，则立即启动该 buffer 的 DMA 传输
 
 - 你只需要不断调用 DMA_DoubleBuf_WriteData 填数据即可，无需关心每一块什么时候发
 
@@ -151,15 +151,15 @@ void on_dma_complete(void)
 ```
 ---
 ## ⏱ 工作原理（简述）
-应用层通过 DMA_DoubleBuf_WriteData 往双缓冲（buffer1 / buffer2）写数据
+1.**应用层通过 DMA_DoubleBuf_WriteData 往双缓冲（buffer1 / buffer2）写数据**
 
-当某个 buffer 填满或达到 total_size 剩余上限时：
+2.**当某个 buffer 填满或达到 total_size 剩余上限时：**
 
 - 标记为“就绪”
 
 - 如果当前无 DMA 在发，则立刻调用 platform_dma.StartTransfer 开始 DMA
 
-DMA 完成中断（TC）触发：
+3.**DMA 完成中断（TC）触发：**
 
 - 调用 DMA_DoubleBuf_IRQHandler
 
@@ -169,9 +169,9 @@ DMA 完成中断（TC）触发：
 
 - 如果 total_remaining == 0，则：
 
-- - 状态置为 DMA_STATE_COMPLETE
+    - 状态置为 DMA_STATE_COMPLETE
 
-- - 调用 complete_cb 通知应用层
+    - 调用 complete_cb 通知应用层
 ---
 ## 🔧 移植指南（platform_dma.c/.h）
 双缓冲框架不直接访问硬件寄存器，而是通过 Platform_DMA_Interface 抽象访问。
